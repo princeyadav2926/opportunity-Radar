@@ -452,12 +452,21 @@ export async function runOpportunityRadarPipeline(
     return finalOpportunities;
   } catch (err: unknown) {
     console.error("[Radar Pipeline] Unhandled pipeline error:", err);
+    const errText = (err as Error)?.message || "";
+    const isApiKeyMissing = errText.includes("GEMINI_API_KEY");
+    const isQuotaExceeded =
+      errText.includes("RESOURCE_EXHAUSTED") ||
+      errText.includes("quota") ||
+      errText.includes("429");
+
     const friendlyMessage =
       err instanceof TinyFishError
         ? err.friendlyMessage
-        : (err as Error).message.includes("GEMINI_API_KEY")
+        : isApiKeyMissing
         ? "Gemini API key is missing or invalid. Please check .env.local"
-        : (err as Error).message || "An unexpected error occurred while running Opportunity Radar";
+        : isQuotaExceeded
+        ? "Gemini daily request quota exceeded. Please wait or use a different key."
+        : errText || "An unexpected error occurred while running Opportunity Radar";
 
     emit({
       step: 6,

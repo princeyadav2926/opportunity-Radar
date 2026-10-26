@@ -49,7 +49,8 @@ export interface ExtractedOpportunity {
 }
 
 function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const rawKey = process.env.GEMINI_API_KEY || "";
+  const apiKey = rawKey.trim().replace(/^["']|["']$/g, "");
   if (!apiKey || apiKey === "your_gemini_api_key_here") {
     throw new Error(
       "GEMINI_API_KEY is not configured. Please add your Gemini API key in .env.local"
@@ -75,10 +76,10 @@ function getCandidateModels(): string[] {
   const configured = process.env.GEMINI_MODEL?.trim();
   const candidates = [
     configured,
-    "gemini-3.5-flash",
-    "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
   ].filter((m): m is string => Boolean(m && m.length > 0));
   return Array.from(new Set(candidates));
 }
@@ -107,6 +108,9 @@ async function generateContentWithFallback(
         err?.status === 429 ||
         err?.status === 404 ||
         err?.message?.includes("503") ||
+        err?.message?.includes("429") ||
+        err?.message?.includes("RESOURCE_EXHAUSTED") ||
+        err?.message?.includes("quota") ||
         err?.message?.includes("high demand") ||
         err?.message?.includes("no longer available") ||
         err?.message?.includes("UNAVAILABLE") ||
@@ -118,7 +122,7 @@ async function generateContentWithFallback(
 
       if (isTransientOrUnavailable) {
         if (err?.status === 429 || err?.message?.includes("429")) {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
         console.warn(`[${label}] Falling back to next available Gemini model...`);
         continue;
